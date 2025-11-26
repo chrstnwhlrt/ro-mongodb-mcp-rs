@@ -2,9 +2,10 @@
 
 use anyhow::Result;
 use rmcp::{
+    ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
-    tool, tool_handler, tool_router, ServerHandler,
+    tool, tool_handler, tool_router,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -198,22 +199,26 @@ impl McpServer {
             .get(&params.connection_name)
             .ok_or_else(|| self.connection_not_found(&params.connection_name))?;
 
-        let content = std::fs::read_to_string(connection.data_model_path()).map_err(|e| {
+        let Some(path) = connection.data_model_path() else {
+            return Ok(CallToolResult::success(vec![Content::text(format!(
+                "No data model configured for connection '{}'. \
+                 Add data_model_file_path to config.yaml to provide schema documentation.",
+                params.connection_name
+            ))]));
+        };
+
+        let content = std::fs::read_to_string(path).map_err(|e| {
             rmcp::ErrorData::internal_error(
-                format!(
-                    "Failed to read data model file '{}': {}",
-                    connection.data_model_path(),
-                    e
-                ),
+                format!("Failed to read data model file '{}': {}", path, e),
                 None,
             )
         })?;
 
         if content.trim().is_empty() {
             return Ok(CallToolResult::success(vec![Content::text(format!(
-                "No data model defined for connection '{}'. \
-                 Add schema documentation to the data_model_file_path in config.yaml.",
-                params.connection_name
+                "Data model file is empty for connection '{}'. \
+                 Add schema documentation to: {}",
+                params.connection_name, path
             ))]));
         }
 
@@ -528,13 +533,7 @@ impl McpServer {
         };
 
         let result = connection
-            .execute_query(
-                &saved_query.collection,
-                &operation,
-                &query,
-                &options,
-                30,
-            )
+            .execute_query(&saved_query.collection, &operation, &query, &options, 30)
             .await
             .map_err(|e| rmcp::ErrorData::internal_error(format_error(&e), None))?;
 

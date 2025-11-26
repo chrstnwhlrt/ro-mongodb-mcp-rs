@@ -32,8 +32,8 @@ impl MongoConnection for K8sConnection {
         "kubernetes"
     }
 
-    fn data_model_path(&self) -> &str {
-        &self.config.data_model_file_path
+    fn data_model_path(&self) -> Option<&str> {
+        self.config.data_model_file_path.as_deref()
     }
 
     fn database_name(&self) -> &str {

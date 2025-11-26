@@ -1,6 +1,6 @@
 //! MongoDB query operations and mongosh execution.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::k8s_client::K8sClient;
@@ -67,7 +67,12 @@ impl QueryOperation {
         }
     }
 
-    pub fn to_mongosh_code(&self, collection: &str, query: &str, options: &QueryOptions) -> Result<String> {
+    pub fn to_mongosh_code(
+        &self,
+        collection: &str,
+        query: &str,
+        options: &QueryOptions,
+    ) -> Result<String> {
         // Validate query is valid JSON
         let _: serde_json::Value = serde_json::from_str(query)
             .with_context(|| format!(
@@ -76,8 +81,8 @@ impl QueryOperation {
 
         // Escape collection name for safe use in JavaScript
         // Use bracket notation with JSON-escaped string to prevent injection
-        let safe_collection = serde_json::to_string(collection)
-            .context("Failed to escape collection name")?;
+        let safe_collection =
+            serde_json::to_string(collection).context("Failed to escape collection name")?;
 
         // Wrap all outputs with JSON.stringify() to ensure valid JSON output
         let code = match self {
@@ -117,21 +122,20 @@ impl QueryOperation {
                 } else {
                     // Fall back to legacy format: {"field": "fieldName", "query": {...}}
                     let distinct_params: serde_json::Value = serde_json::from_str(query)
-                        .with_context(|| format!(
-                            "Distinct query must be valid JSON. Received: '{query}'"
-                        ))?;
+                        .with_context(|| {
+                            format!("Distinct query must be valid JSON. Received: '{query}'")
+                        })?;
 
-                    distinct_params.get("field")
+                    distinct_params
+                        .get("field")
                         .and_then(|v| v.as_str())
-                        .ok_or_else(|| anyhow!(
-                            "Distinct requires 'distinct_field' parameter"
-                        ))?
+                        .ok_or_else(|| anyhow!("Distinct requires 'distinct_field' parameter"))?
                         .to_string()
                 };
 
                 // Escape field name for safe use
-                let safe_field = serde_json::to_string(&field)
-                    .context("Failed to escape field name")?;
+                let safe_field =
+                    serde_json::to_string(&field).context("Failed to escape field name")?;
 
                 // Get filter - either from query directly (if distinct_field is set) or from legacy format
                 let filter = if options.distinct_field.is_some() {
@@ -140,7 +144,9 @@ impl QueryOperation {
                 } else {
                     // Legacy format - extract query from {"field": ..., "query": ...}
                     let distinct_params: serde_json::Value = serde_json::from_str(query)?;
-                    distinct_params.get("query").map_or_else(|| "{}".to_string(), |v| v.to_string())
+                    distinct_params
+                        .get("query")
+                        .map_or_else(|| "{}".to_string(), |v| v.to_string())
                 };
 
                 format!("JSON.stringify(db[{safe_collection}].distinct({safe_field}, {filter}))")
@@ -167,14 +173,23 @@ pub async fn get_mongodb_credentials(
     pod_name: &str,
     container_name: &str,
 ) -> Result<MongoCredentials> {
-    tracing::debug!("Getting MongoDB credentials from pod {}/{} container {}", namespace, pod_name, container_name);
+    tracing::debug!(
+        "Getting MongoDB credentials from pod {}/{} container {}",
+        namespace,
+        pod_name,
+        container_name
+    );
 
     // Get both env vars in a single pod fetch
     let env_vars = k8s_client
-        .get_pod_env_vars(namespace, pod_name, &[
-            "MONGO_INITDB_ROOT_USERNAME_FILE",
-            "MONGO_INITDB_ROOT_PASSWORD_FILE",
-        ])
+        .get_pod_env_vars(
+            namespace,
+            pod_name,
+            &[
+                "MONGO_INITDB_ROOT_USERNAME_FILE",
+                "MONGO_INITDB_ROOT_PASSWORD_FILE",
+            ],
+        )
         .await?;
 
     let username_file_path = env_vars.first().cloned().flatten().ok_or_else(|| anyhow!(
@@ -184,7 +199,11 @@ pub async fn get_mongodb_credentials(
         "MongoDB credentials not found: MONGO_INITDB_ROOT_PASSWORD_FILE environment variable missing in pod '{namespace}/{pod_name}'."
     ))?;
 
-    tracing::debug!("Username file: {}, Password file: {}", username_file_path, password_file_path);
+    tracing::debug!(
+        "Username file: {}, Password file: {}",
+        username_file_path,
+        password_file_path
+    );
 
     // Read both credential files in parallel
     let (username_result, password_result) = tokio::join!(
@@ -192,8 +211,14 @@ pub async fn get_mongodb_credentials(
         k8s_client.read_file_from_pod(namespace, pod_name, container_name, &password_file_path)
     );
 
-    let username = username_result.context("Failed to read username file")?.trim().to_string();
-    let password = password_result.context("Failed to read password file")?.trim().to_string();
+    let username = username_result
+        .context("Failed to read username file")?
+        .trim()
+        .to_string();
+    let password = password_result
+        .context("Failed to read password file")?
+        .trim()
+        .to_string();
 
     Ok(MongoCredentials { username, password })
 }
@@ -220,7 +245,10 @@ pub async fn execute_mongosh_query(
     validate_readonly_operation(&query.operation);
 
     // Build mongosh eval code
-    let eval_code = query.operation.to_mongosh_code(&query.collection, &query.query, &query.options)?;
+    let eval_code =
+        query
+            .operation
+            .to_mongosh_code(&query.collection, &query.query, &query.options)?;
 
     tracing::debug!("Mongosh eval code: {}", eval_code);
 
@@ -351,11 +379,26 @@ mod tests {
 
     #[test]
     fn test_query_operation_from_str() {
-        assert!(matches!(QueryOperation::from_str("find"), Ok(QueryOperation::Find)));
-        assert!(matches!(QueryOperation::from_str("FIND"), Ok(QueryOperation::Find)));
-        assert!(matches!(QueryOperation::from_str("aggregate"), Ok(QueryOperation::Aggregate)));
-        assert!(matches!(QueryOperation::from_str("countDocuments"), Ok(QueryOperation::CountDocuments)));
-        assert!(matches!(QueryOperation::from_str("distinct"), Ok(QueryOperation::Distinct)));
+        assert!(matches!(
+            QueryOperation::from_str("find"),
+            Ok(QueryOperation::Find)
+        ));
+        assert!(matches!(
+            QueryOperation::from_str("FIND"),
+            Ok(QueryOperation::Find)
+        ));
+        assert!(matches!(
+            QueryOperation::from_str("aggregate"),
+            Ok(QueryOperation::Aggregate)
+        ));
+        assert!(matches!(
+            QueryOperation::from_str("countDocuments"),
+            Ok(QueryOperation::CountDocuments)
+        ));
+        assert!(matches!(
+            QueryOperation::from_str("distinct"),
+            Ok(QueryOperation::Distinct)
+        ));
         assert!(QueryOperation::from_str("invalid").is_err());
     }
 
@@ -377,16 +420,26 @@ mod tests {
         assert_eq!(code, "JSON.stringify(db[\"users\"].find({}, {}).toArray())");
 
         let op = QueryOperation::Aggregate;
-        let code = op.to_mongosh_code("users", "[{\"$match\": {}}]", &opts).unwrap();
-        assert_eq!(code, "JSON.stringify(db[\"users\"].aggregate([{\"$match\": {}}]).toArray())");
+        let code = op
+            .to_mongosh_code("users", "[{\"$match\": {}}]", &opts)
+            .unwrap();
+        assert_eq!(
+            code,
+            "JSON.stringify(db[\"users\"].aggregate([{\"$match\": {}}]).toArray())"
+        );
 
         let op = QueryOperation::CountDocuments;
         let code = op.to_mongosh_code("users", "{}", &opts).unwrap();
         assert_eq!(code, "db[\"users\"].countDocuments({})");
 
         let op = QueryOperation::Distinct;
-        let code = op.to_mongosh_code("users", r#"{"field": "email", "query": {}}"#, &opts).unwrap();
-        assert_eq!(code, "JSON.stringify(db[\"users\"].distinct(\"email\", {}))");
+        let code = op
+            .to_mongosh_code("users", r#"{"field": "email", "query": {}}"#, &opts)
+            .unwrap();
+        assert_eq!(
+            code,
+            "JSON.stringify(db[\"users\"].distinct(\"email\", {}))"
+        );
     }
 
     #[test]
@@ -396,8 +449,13 @@ mod tests {
             limit: Some(10),
             ..Default::default()
         };
-        let code = QueryOperation::Find.to_mongosh_code("users", "{}", &opts).unwrap();
-        assert_eq!(code, "JSON.stringify(db[\"users\"].find({}, {}).limit(10).toArray())");
+        let code = QueryOperation::Find
+            .to_mongosh_code("users", "{}", &opts)
+            .unwrap();
+        assert_eq!(
+            code,
+            "JSON.stringify(db[\"users\"].find({}, {}).limit(10).toArray())"
+        );
 
         // Test find with sort and limit
         let opts = QueryOptions {
@@ -405,24 +463,39 @@ mod tests {
             sort: Some("{\"createdAt\": -1}".to_string()),
             ..Default::default()
         };
-        let code = QueryOperation::Find.to_mongosh_code("users", "{}", &opts).unwrap();
-        assert_eq!(code, "JSON.stringify(db[\"users\"].find({}, {}).sort({\"createdAt\": -1}).limit(5).toArray())");
+        let code = QueryOperation::Find
+            .to_mongosh_code("users", "{}", &opts)
+            .unwrap();
+        assert_eq!(
+            code,
+            "JSON.stringify(db[\"users\"].find({}, {}).sort({\"createdAt\": -1}).limit(5).toArray())"
+        );
 
         // Test find with projection
         let opts = QueryOptions {
             projection: Some("{\"name\": 1}".to_string()),
             ..Default::default()
         };
-        let code = QueryOperation::Find.to_mongosh_code("users", "{}", &opts).unwrap();
-        assert_eq!(code, "JSON.stringify(db[\"users\"].find({}, {\"name\": 1}).toArray())");
+        let code = QueryOperation::Find
+            .to_mongosh_code("users", "{}", &opts)
+            .unwrap();
+        assert_eq!(
+            code,
+            "JSON.stringify(db[\"users\"].find({}, {\"name\": 1}).toArray())"
+        );
 
         // Test distinct with distinct_field option
         let opts = QueryOptions {
             distinct_field: Some("country".to_string()),
             ..Default::default()
         };
-        let code = QueryOperation::Distinct.to_mongosh_code("users", "{}", &opts).unwrap();
-        assert_eq!(code, "JSON.stringify(db[\"users\"].distinct(\"country\", {}))");
+        let code = QueryOperation::Distinct
+            .to_mongosh_code("users", "{}", &opts)
+            .unwrap();
+        assert_eq!(
+            code,
+            "JSON.stringify(db[\"users\"].distinct(\"country\", {}))"
+        );
     }
 
     #[test]
@@ -430,14 +503,16 @@ mod tests {
         let opts = QueryOptions::default();
         // Test that special characters in collection names are properly escaped
         let op = QueryOperation::Find;
-        let code = op.to_mongosh_code("test\"; db.dropDatabase(); //", "{}", &opts).unwrap();
+        let code = op
+            .to_mongosh_code("test\"; db.dropDatabase(); //", "{}", &opts)
+            .unwrap();
         // The collection name should be JSON-escaped in bracket notation
         // db["test\"; db.dropDatabase(); //"].find({}) - the quotes are escaped
         assert!(code.starts_with("JSON.stringify(db[\""));
-        assert!(code.contains("\\\""));  // Contains escaped quotes
+        assert!(code.contains("\\\"")); // Contains escaped quotes
         // The malicious code is inside the string, not executed as JS
-        assert!(code.contains("db.dropDatabase()"));  // It's in the string
-        assert!(!code.starts_with("JSON.stringify(db.test"));  // NOT using dot notation
+        assert!(code.contains("db.dropDatabase()")); // It's in the string
+        assert!(!code.starts_with("JSON.stringify(db.test")); // NOT using dot notation
     }
 
     #[test]
@@ -455,7 +530,10 @@ mod tests {
         let opts = QueryOptions::default();
         let op = QueryOperation::Find;
         // Invalid JSON should fail
-        assert!(op.to_mongosh_code("users", "not valid json", &opts).is_err());
+        assert!(
+            op.to_mongosh_code("users", "not valid json", &opts)
+                .is_err()
+        );
         assert!(op.to_mongosh_code("users", "{unclosed", &opts).is_err());
     }
 
@@ -465,7 +543,10 @@ mod tests {
         let op = QueryOperation::Distinct;
         // Distinct without "field" parameter or distinct_field option should fail
         assert!(op.to_mongosh_code("users", "{}", &opts).is_err());
-        assert!(op.to_mongosh_code("users", r#"{"query": {}}"#, &opts).is_err());
+        assert!(
+            op.to_mongosh_code("users", r#"{"query": {}}"#, &opts)
+                .is_err()
+        );
     }
 
     #[test]
@@ -473,7 +554,9 @@ mod tests {
         let opts = QueryOptions::default();
         let op = QueryOperation::Distinct;
         // Field names with special characters should be escaped
-        let code = op.to_mongosh_code("users", r#"{"field": "test\"field", "query": {}}"#, &opts).unwrap();
-        assert!(code.contains("\\\""));  // Contains escaped quotes in field name
+        let code = op
+            .to_mongosh_code("users", r#"{"field": "test\"field", "query": {}}"#, &opts)
+            .unwrap();
+        assert!(code.contains("\\\"")); // Contains escaped quotes in field name
     }
 }

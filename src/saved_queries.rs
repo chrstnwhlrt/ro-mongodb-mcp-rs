@@ -39,21 +39,18 @@ impl SavedQueries {
             return Ok(Self::default());
         }
 
-        let content = fs::read_to_string(&file_path)
-            .context("Failed to read saved queries file")?;
+        let content =
+            fs::read_to_string(&file_path).context("Failed to read saved queries file")?;
 
-        serde_yaml::from_str(&content)
-            .context("Failed to parse saved queries file")
+        serde_yaml::from_str(&content).context("Failed to parse saved queries file")
     }
 
     /// Save queries to file
     pub fn save(&self, connection_name: &str) -> Result<()> {
         let file_path = Self::queries_file_path(connection_name)?;
-        let content = serde_yaml::to_string(self)
-            .context("Failed to serialize saved queries")?;
+        let content = serde_yaml::to_string(self).context("Failed to serialize saved queries")?;
 
-        fs::write(&file_path, content)
-            .context("Failed to write saved queries file")?;
+        fs::write(&file_path, content).context("Failed to write saved queries file")?;
 
         Ok(())
     }
@@ -176,8 +173,20 @@ mod tests {
     #[test]
     fn test_list_names() {
         let mut queries = SavedQueries::default();
-        queries.upsert_query("q1".to_string(), "d1".to_string(), "c".to_string(), "find".to_string(), "{}".to_string());
-        queries.upsert_query("q2".to_string(), "d2".to_string(), "c".to_string(), "find".to_string(), "{}".to_string());
+        queries.upsert_query(
+            "q1".to_string(),
+            "d1".to_string(),
+            "c".to_string(),
+            "find".to_string(),
+            "{}".to_string(),
+        );
+        queries.upsert_query(
+            "q2".to_string(),
+            "d2".to_string(),
+            "c".to_string(),
+            "find".to_string(),
+            "{}".to_string(),
+        );
 
         let names = queries.list_names();
         assert_eq!(names.len(), 2);

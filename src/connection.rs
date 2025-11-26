@@ -17,8 +17,8 @@ pub trait MongoConnection: Send + Sync {
     /// Human-readable connection type for error messages ("kubernetes" or "direct")
     fn connection_type(&self) -> &str;
 
-    /// Path to the data model file
-    fn data_model_path(&self) -> &str;
+    /// Path to the data model file (if configured)
+    fn data_model_path(&self) -> Option<&str>;
 
     /// Database name for this connection
     fn database_name(&self) -> &str;
@@ -75,4 +75,3 @@ impl ConnectionRegistry {
         list
     }
 }
-

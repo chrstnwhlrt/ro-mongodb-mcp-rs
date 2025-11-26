@@ -40,7 +40,7 @@ connections:
   - name: local
     mongodb_url: mongodb://localhost:27017
     database_name: mydb
-    data_model_file_path: /path/to/schema.md
+    # data_model_file_path: /path/to/schema.md  # optional
 ```
 
 Or copy and customize the example:
@@ -105,7 +105,7 @@ namespaces:
 | `mongodb_url` | MongoDB connection string (direct connections only) |
 | `deployment_name` | Pod label selector `app=<value>` (K8s only) |
 | `database_name` | Default database for queries |
-| `data_model_file_path` | Schema documentation file (any format) |
+| `data_model_file_path` | (optional) Schema documentation file (any format) |
 
 **Important:** Connection names must be unique across all connections.
 

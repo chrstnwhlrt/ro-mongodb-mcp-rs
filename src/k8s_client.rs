@@ -1,11 +1,11 @@
 //! Kubernetes API client for pod operations.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use k8s_openapi::api::core::v1::Pod;
 use kube::{
+    Client, Config,
     api::{Api, AttachedProcess, ListParams},
     config::KubeConfigOptions,
-    Client, Config,
 };
 use std::time::Duration;
 use tokio::io::AsyncReadExt;
@@ -28,28 +28,20 @@ impl K8sClient {
                 .context("Failed to infer kubernetes configuration")?
         };
 
-        let client = Client::try_from(config)
-            .context("Failed to create kubernetes client")?;
+        let client = Client::try_from(config).context("Failed to create kubernetes client")?;
 
         Ok(Self { client })
     }
 
     /// Find a healthy pod for a deployment in a namespace
-    pub async fn find_healthy_pod(
-        &self,
-        namespace: &str,
-        deployment_name: &str,
-    ) -> Result<String> {
+    pub async fn find_healthy_pod(&self, namespace: &str, deployment_name: &str) -> Result<String> {
         let pods: Api<Pod> = Api::namespaced(self.client.clone(), namespace);
 
         // List pods with label selector
         let label_selector = format!("app={deployment_name}");
         let lp = ListParams::default().labels(&label_selector);
 
-        let pod_list = pods
-            .list(&lp)
-            .await
-            .context("Failed to list pods")?;
+        let pod_list = pods.list(&lp).await.context("Failed to list pods")?;
 
         tracing::debug!(
             "Found {} pods for deployment {} in namespace {}",
@@ -60,11 +52,7 @@ impl K8sClient {
 
         // Find first healthy pod
         for pod in pod_list.items {
-            let pod_name = pod
-                .metadata
-                .name
-                .as_ref()
-                .context("Pod has no name")?;
+            let pod_name = pod.metadata.name.as_ref().context("Pod has no name")?;
 
             // Check pod phase
             if let Some(status) = &pod.status {
@@ -77,9 +65,7 @@ impl K8sClient {
 
                 // Check container statuses
                 if let Some(container_statuses) = &status.container_statuses {
-                    let all_ready = container_statuses
-                        .iter()
-                        .all(|cs| cs.ready);
+                    let all_ready = container_statuses.iter().all(|cs| cs.ready);
 
                     if all_ready {
                         tracing::info!("Found healthy pod: {}", pod_name);
@@ -90,9 +76,7 @@ impl K8sClient {
             }
         }
 
-        bail!(
-            "No healthy pods found for deployment '{deployment_name}' in namespace '{namespace}'"
-        )
+        bail!("No healthy pods found for deployment '{deployment_name}' in namespace '{namespace}'")
     }
 
     /// Execute a command in a pod with timeout
@@ -160,10 +144,7 @@ impl K8sClient {
     ) -> Result<Vec<Option<String>>> {
         let pods: Api<Pod> = Api::namespaced(self.client.clone(), namespace);
 
-        let pod = pods
-            .get(pod_name)
-            .await
-            .context("Failed to get pod")?;
+        let pod = pods.get(pod_name).await.context("Failed to get pod")?;
 
         let mut results: Vec<Option<String>> = vec![None; env_var_names.len()];
 
@@ -186,12 +167,12 @@ impl K8sClient {
 
     /// Helper to get output from attached process (captures both stdout and stderr)
     async fn get_output(&self, mut attached: AttachedProcess) -> Result<String> {
-        let stdout = attached.stdout().ok_or_else(|| {
-            anyhow!("Failed to get stdout from attached process")
-        })?;
-        let stderr = attached.stderr().ok_or_else(|| {
-            anyhow!("Failed to get stderr from attached process")
-        })?;
+        let stdout = attached
+            .stdout()
+            .ok_or_else(|| anyhow!("Failed to get stdout from attached process"))?;
+        let stderr = attached
+            .stderr()
+            .ok_or_else(|| anyhow!("Failed to get stderr from attached process"))?;
 
         // Read both stdout and stderr concurrently
         let (stdout_result, stderr_result) = tokio::join!(
@@ -212,10 +193,8 @@ impl K8sClient {
         let stdout_bytes = stdout_result.context("Failed to read stdout")?;
         let stderr_bytes = stderr_result.context("Failed to read stderr")?;
 
-        let stdout_str = String::from_utf8(stdout_bytes)
-            .context("stdout is not valid UTF-8")?;
-        let stderr_str = String::from_utf8(stderr_bytes)
-            .context("stderr is not valid UTF-8")?;
+        let stdout_str = String::from_utf8(stdout_bytes).context("stdout is not valid UTF-8")?;
+        let stderr_str = String::from_utf8(stderr_bytes).context("stderr is not valid UTF-8")?;
 
         // If stdout is empty but stderr has content, return stderr (it's an error)
         // If both have content, prefer stdout but append stderr if it looks like an error

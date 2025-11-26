@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -9,7 +9,8 @@ pub struct NamespaceConfig {
     pub namespace_name: String,
     pub deployment_name: String,
     pub database_name: String,
-    pub data_model_file_path: String,
+    #[serde(default)]
+    pub data_model_file_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,7 +18,8 @@ pub struct DirectConnectionConfig {
     pub name: String,
     pub mongodb_url: String,
     pub database_name: String,
-    pub data_model_file_path: String,
+    #[serde(default)]
+    pub data_model_file_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -39,8 +41,7 @@ impl Config {
             .join("ro-mongodb-mcp-rs");
 
         if !config_dir.exists() {
-            fs::create_dir_all(&config_dir)
-                .context("Failed to create config directory")?;
+            fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
         }
 
         Ok(config_dir)
@@ -52,8 +53,7 @@ impl Config {
             .join("ro-mongodb-mcp-rs");
 
         if !data_dir.exists() {
-            fs::create_dir_all(&data_dir)
-                .context("Failed to create data directory")?;
+            fs::create_dir_all(&data_dir).context("Failed to create data directory")?;
         }
 
         Ok(data_dir)
@@ -76,11 +76,9 @@ impl Config {
             );
         }
 
-        let content = fs::read_to_string(&config_file)
-            .context("Failed to read config file")?;
+        let content = fs::read_to_string(&config_file).context("Failed to read config file")?;
 
-        let config: Self = serde_yaml::from_str(&content)
-            .context("Failed to parse config file")?;
+        let config: Self = serde_yaml::from_str(&content).context("Failed to parse config file")?;
 
         // Validate data model files exist
         config.validate();
@@ -102,13 +100,13 @@ namespaces:
   - namespace_name: production
     deployment_name: mongodb
     database_name: myapp
-    data_model_file_path: /path/to/data-models/production.ts
+    data_model_file_path: /path/to/data-models/production.ts  # optional
 
   # Example: Staging environment
   - namespace_name: staging
     deployment_name: mongodb
     database_name: myapp_staging
-    data_model_file_path: /path/to/data-models/staging.ts
+    # data_model_file_path is optional - omit if no schema docs available
 
 # Direct MongoDB URL connections
 # Use these for direct connections (local, Atlas, or any MongoDB with URL access)
@@ -117,7 +115,7 @@ connections:
   - name: local-dev
     mongodb_url: mongodb://localhost:27017
     database_name: dev_db
-    data_model_file_path: /path/to/data-models/local.md
+    # data_model_file_path: /path/to/schema.md  # optional
 
   # Example: MongoDB Atlas (cloud)
   # - name: atlas-analytics
@@ -131,7 +129,7 @@ connections:
 # - namespace_name: The Kubernetes namespace where MongoDB is deployed (also used as connection name)
 # - deployment_name: The deployment label (app=<deployment_name>) to find MongoDB pods
 # - database_name: The MongoDB database to query
-# - data_model_file_path: Local file containing data model documentation
+# - data_model_file_path: (optional) Local file containing data model documentation
 # - MongoDB credentials are automatically discovered from pod environment variables:
 #   MONGO_INITDB_ROOT_USERNAME_FILE and MONGO_INITDB_ROOT_PASSWORD_FILE
 #
@@ -140,11 +138,10 @@ connections:
 # - mongodb_url: Full MongoDB connection URL (credentials included)
 #   WARNING: This URL may contain sensitive credentials - keep config file secure!
 # - database_name: The MongoDB database to query
-# - data_model_file_path: Local file containing data model documentation
+# - data_model_file_path: (optional) Local file containing data model documentation
 ";
 
-        fs::write(config_file, example_content)
-            .context("Failed to write example config file")?;
+        fs::write(config_file, example_content).context("Failed to write example config file")?;
 
         Ok(())
     }
@@ -198,24 +195,28 @@ connections:
 
     pub fn validate(&self) {
         for ns in &self.namespaces {
-            let path = PathBuf::from(&ns.data_model_file_path);
-            if !path.exists() {
-                tracing::warn!(
-                    "Data model file does not exist for namespace '{}': {}",
-                    ns.namespace_name,
-                    ns.data_model_file_path
-                );
+            if let Some(path_str) = &ns.data_model_file_path {
+                let path = PathBuf::from(path_str);
+                if !path.exists() {
+                    tracing::warn!(
+                        "Data model file does not exist for namespace '{}': {}",
+                        ns.namespace_name,
+                        path_str
+                    );
+                }
             }
         }
 
         for conn in &self.connections {
-            let path = PathBuf::from(&conn.data_model_file_path);
-            if !path.exists() {
-                tracing::warn!(
-                    "Data model file does not exist for connection '{}': {}",
-                    conn.name,
-                    conn.data_model_file_path
-                );
+            if let Some(path_str) = &conn.data_model_file_path {
+                let path = PathBuf::from(path_str);
+                if !path.exists() {
+                    tracing::warn!(
+                        "Data model file does not exist for connection '{}': {}",
+                        conn.name,
+                        path_str
+                    );
+                }
             }
         }
     }

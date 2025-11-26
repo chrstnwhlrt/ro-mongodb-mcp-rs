@@ -1,9 +1,9 @@
 //! Direct MongoDB connection implementation.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use futures::TryStreamExt;
-use mongodb::{bson::Document, options::ClientOptions, Client};
+use mongodb::{Client, bson::Document, options::ClientOptions};
 use std::time::Duration;
 use tokio::sync::OnceCell;
 
@@ -43,8 +43,7 @@ impl DirectConnection {
                 client_options.connect_timeout = Some(Duration::from_secs(10));
                 client_options.server_selection_timeout = Some(Duration::from_secs(30));
 
-                Client::with_options(client_options)
-                    .context("Failed to create MongoDB client")
+                Client::with_options(client_options).context("Failed to create MongoDB client")
             })
             .await
     }
@@ -69,14 +68,14 @@ impl DirectConnection {
                 }
 
                 if let Some(sort_str) = &options.sort {
-                    let sort: Document = serde_json::from_str(sort_str)
-                        .context("Invalid sort JSON")?;
+                    let sort: Document =
+                        serde_json::from_str(sort_str).context("Invalid sort JSON")?;
                     find_options.sort = Some(sort);
                 }
 
                 if let Some(projection_str) = &options.projection {
-                    let projection: Document = serde_json::from_str(projection_str)
-                        .context("Invalid projection JSON")?;
+                    let projection: Document =
+                        serde_json::from_str(projection_str).context("Invalid projection JSON")?;
                     find_options.projection = Some(projection);
                 }
 
@@ -92,8 +91,8 @@ impl DirectConnection {
                 serde_json::to_string(&docs).context("Failed to serialize find results")
             }
             QueryOperation::Aggregate => {
-                let pipeline: Vec<Document> = serde_json::from_str(query_str)
-                    .context("Invalid aggregation pipeline JSON")?;
+                let pipeline: Vec<Document> =
+                    serde_json::from_str(query_str).context("Invalid aggregation pipeline JSON")?;
                 let cursor = collection
                     .aggregate(pipeline)
                     .await
@@ -118,22 +117,19 @@ impl DirectConnection {
                 let field = if let Some(field) = &options.distinct_field {
                     field.clone()
                 } else {
-                    let params: serde_json::Value = serde_json::from_str(query_str)
-                        .context("Invalid distinct query JSON")?;
+                    let params: serde_json::Value =
+                        serde_json::from_str(query_str).context("Invalid distinct query JSON")?;
                     params
                         .get("field")
                         .and_then(|v| v.as_str())
-                        .ok_or_else(|| {
-                            anyhow!("Distinct requires 'distinct_field' parameter")
-                        })?
+                        .ok_or_else(|| anyhow!("Distinct requires 'distinct_field' parameter"))?
                         .to_string()
                 };
 
                 // Get filter from query or legacy format
                 let filter: Document = if options.distinct_field.is_some() {
                     // Query is the filter directly
-                    serde_json::from_str(query_str)
-                        .context("Invalid filter JSON for distinct")?
+                    serde_json::from_str(query_str).context("Invalid filter JSON for distinct")?
                 } else {
                     // Legacy format - extract from {"field": ..., "query": ...}
                     let params: serde_json::Value = serde_json::from_str(query_str)?;
@@ -166,8 +162,8 @@ impl MongoConnection for DirectConnection {
         "direct"
     }
 
-    fn data_model_path(&self) -> &str {
-        &self.config.data_model_file_path
+    fn data_model_path(&self) -> Option<&str> {
+        self.config.data_model_file_path.as_deref()
     }
 
     fn database_name(&self) -> &str {

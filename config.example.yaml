@@ -28,13 +28,13 @@ namespaces:
   - namespace_name: production           # K8s namespace (also used as connection name)
     deployment_name: mongodb             # Pod label selector: app=mongodb
     database_name: myapp                 # MongoDB database to query
-    data_model_file_path: /path/to/schemas/production.md
+    data_model_file_path: /path/to/schemas/production.md  # optional
 
-  # Example: Staging environment
+  # Example: Staging environment (without data model)
   - namespace_name: staging
     deployment_name: mongodb
     database_name: myapp_staging
-    data_model_file_path: /path/to/schemas/staging.md
+    # data_model_file_path is optional - omit if no schema docs available
 
 # ------------------------------------------------------------------------------
 # DIRECT MONGODB URL CONNECTIONS
@@ -47,29 +47,27 @@ namespaces:
 # These connections use the native MongoDB Rust driver (faster than K8s exec).
 
 connections:
-  # Example: Local development
+  # Example: Local development (minimal config)
   - name: local-dev                      # Unique connection name
     mongodb_url: mongodb://localhost:27017
     database_name: dev_db
-    data_model_file_path: /path/to/schemas/local.md
+    # data_model_file_path is optional
 
   # Example: MongoDB Atlas (cloud)
   # - name: atlas-prod
   #   mongodb_url: mongodb+srv://username:password@cluster.mongodb.net
   #   database_name: production
-  #   data_model_file_path: /path/to/schemas/atlas.md
+  #   data_model_file_path: /path/to/schemas/atlas.md  # optional
 
   # Example: MongoDB with authentication
   # - name: authenticated-mongo
   #   mongodb_url: mongodb://user:password@hostname:27017/authdb?authSource=admin
   #   database_name: mydb
-  #   data_model_file_path: /path/to/schemas/auth.md
 
   # Example: Replica set
   # - name: replica-set
   #   mongodb_url: mongodb://host1:27017,host2:27017,host3:27017/?replicaSet=myReplicaSet
   #   database_name: mydb
-  #   data_model_file_path: /path/to/schemas/replica.md
 
 # ------------------------------------------------------------------------------
 # CONFIGURATION REFERENCE
@@ -79,7 +77,7 @@ connections:
 #   namespace_name       - K8s namespace where MongoDB runs (becomes connection name)
 #   deployment_name      - Pod label selector (finds pods with app=<deployment_name>)
 #   database_name        - MongoDB database to query
-#   data_model_file_path - Local file with schema documentation (any format)
+#   data_model_file_path - (optional) Local file with schema documentation
 #
 #   Credential Discovery:
 #   The server reads these environment variables from the MongoDB pod:
@@ -90,7 +88,7 @@ connections:
 #   name                 - Unique connection name (must not conflict with namespaces)
 #   mongodb_url          - Full MongoDB connection string (credentials included)
 #   database_name        - MongoDB database to query
-#   data_model_file_path - Local file with schema documentation (any format)
+#   data_model_file_path - (optional) Local file with schema documentation
 #
 #   Supported URL formats:
 #   - mongodb://localhost:27017
