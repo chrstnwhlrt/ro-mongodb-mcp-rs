@@ -1,0 +1,108 @@
+# ro-mongodb-mcp-rs Configuration
+# ================================
+# Copy this file to ~/.config/ro-mongodb-mcp-rs/config.yaml and customize.
+#
+# This MCP server supports two connection types:
+# 1. Kubernetes namespace connections - for MongoDB running in K8s clusters
+# 2. Direct URL connections - for local, Atlas, or any accessible MongoDB
+
+# ------------------------------------------------------------------------------
+# KUBERNETES CONFIGURATION (Optional)
+# ------------------------------------------------------------------------------
+
+# Custom kubeconfig path (optional)
+# If not specified, uses default location (~/.kube/config or KUBECONFIG env var)
+# kubeconfig_path: /path/to/custom/kubeconfig
+
+# ------------------------------------------------------------------------------
+# KUBERNETES NAMESPACE CONNECTIONS
+# ------------------------------------------------------------------------------
+# Use these when MongoDB is running inside a Kubernetes cluster.
+# The server will:
+# - Find a healthy pod with label app=<deployment_name>
+# - Auto-discover credentials from pod environment variables
+# - Execute queries via mongosh inside the pod
+
+namespaces:
+  # Example: Production environment
+  - namespace_name: production           # K8s namespace (also used as connection name)
+    deployment_name: mongodb             # Pod label selector: app=mongodb
+    database_name: myapp                 # MongoDB database to query
+    data_model_file_path: /path/to/schemas/production.md
+
+  # Example: Staging environment
+  - namespace_name: staging
+    deployment_name: mongodb
+    database_name: myapp_staging
+    data_model_file_path: /path/to/schemas/staging.md
+
+# ------------------------------------------------------------------------------
+# DIRECT MONGODB URL CONNECTIONS
+# ------------------------------------------------------------------------------
+# Use these for direct network access to MongoDB:
+# - Local development (localhost)
+# - MongoDB Atlas (cloud)
+# - Any MongoDB accessible via URL
+#
+# These connections use the native MongoDB Rust driver (faster than K8s exec).
+
+connections:
+  # Example: Local development
+  - name: local-dev                      # Unique connection name
+    mongodb_url: mongodb://localhost:27017
+    database_name: dev_db
+    data_model_file_path: /path/to/schemas/local.md
+
+  # Example: MongoDB Atlas (cloud)
+  # - name: atlas-prod
+  #   mongodb_url: mongodb+srv://username:password@cluster.mongodb.net
+  #   database_name: production
+  #   data_model_file_path: /path/to/schemas/atlas.md
+
+  # Example: MongoDB with authentication
+  # - name: authenticated-mongo
+  #   mongodb_url: mongodb://user:password@hostname:27017/authdb?authSource=admin
+  #   database_name: mydb
+  #   data_model_file_path: /path/to/schemas/auth.md
+
+  # Example: Replica set
+  # - name: replica-set
+  #   mongodb_url: mongodb://host1:27017,host2:27017,host3:27017/?replicaSet=myReplicaSet
+  #   database_name: mydb
+  #   data_model_file_path: /path/to/schemas/replica.md
+
+# ------------------------------------------------------------------------------
+# CONFIGURATION REFERENCE
+# ------------------------------------------------------------------------------
+#
+# Kubernetes Namespace Connections:
+#   namespace_name       - K8s namespace where MongoDB runs (becomes connection name)
+#   deployment_name      - Pod label selector (finds pods with app=<deployment_name>)
+#   database_name        - MongoDB database to query
+#   data_model_file_path - Local file with schema documentation (any format)
+#
+#   Credential Discovery:
+#   The server reads these environment variables from the MongoDB pod:
+#   - MONGO_INITDB_ROOT_USERNAME_FILE -> reads file contents for username
+#   - MONGO_INITDB_ROOT_PASSWORD_FILE -> reads file contents for password
+#
+# Direct URL Connections:
+#   name                 - Unique connection name (must not conflict with namespaces)
+#   mongodb_url          - Full MongoDB connection string (credentials included)
+#   database_name        - MongoDB database to query
+#   data_model_file_path - Local file with schema documentation (any format)
+#
+#   Supported URL formats:
+#   - mongodb://localhost:27017
+#   - mongodb://user:pass@host:27017/db
+#   - mongodb+srv://user:pass@cluster.mongodb.net
+#   - mongodb://host1,host2,host3/?replicaSet=rs0
+#
+# IMPORTANT:
+# - Connection names must be unique across ALL connections (namespaces + direct)
+# - Direct connection URLs may contain credentials - keep this file secure!
+# - Data model files can be any format (Markdown, TypeScript, JSON, etc.)
+#
+# Data Storage:
+# - Config file: ~/.config/ro-mongodb-mcp-rs/config.yaml
+# - Saved queries: ~/.local/share/ro-mongodb-mcp-rs/<connection>.queries.yaml
