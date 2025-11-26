@@ -1996,7 +1996,7 @@ dependencies = [
 
 [[package]]
 name = "ro-mongodb-mcp-rs"
-version = "1.0.1"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
