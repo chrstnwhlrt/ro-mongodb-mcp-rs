@@ -28,7 +28,7 @@ namespaces:
   - namespace_name: production           # K8s namespace (also used as connection name)
     deployment_name: mongodb             # Pod label selector: app=mongodb
     database_name: myapp                 # MongoDB database to query
-    data_model_file_path: /path/to/schemas/production.md  # optional
+    data_model_file_path: $HOME/schemas/production.md  # supports $HOME, ${VAR}, ~
 
   # Example: Staging environment (without data model)
   - namespace_name: staging
@@ -100,6 +100,7 @@ connections:
 # - Connection names must be unique across ALL connections (namespaces + direct)
 # - Direct connection URLs may contain credentials - keep this file secure!
 # - Data model files can be any format (Markdown, TypeScript, JSON, etc.)
+# - Paths support environment variables ($HOME, ${VAR}) and tilde (~) expansion
 #
 # Data Storage:
 # - Config file: ~/.config/ro-mongodb-mcp-rs/config.yaml

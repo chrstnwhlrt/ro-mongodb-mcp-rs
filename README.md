@@ -101,11 +101,14 @@ namespaces:
 
 | Field | Description |
 |-------|-------------|
+| `kubeconfig_path` | (optional) Custom kubeconfig file path (K8s only) |
 | `name` / `namespace_name` | Unique connection identifier |
 | `mongodb_url` | MongoDB connection string (direct connections only) |
 | `deployment_name` | Pod label selector `app=<value>` (K8s only) |
 | `database_name` | Default database for queries |
 | `data_model_file_path` | (optional) Schema documentation file (any format) |
+
+**Path expansion:** All path fields support environment variables (`$HOME`, `${VAR}`) and tilde (`~`) expansion.
 
 **Important:** Connection names must be unique across all connections.
 
@@ -405,8 +408,8 @@ Required variables:
 
 ### "Failed to read data model file"
 
-- Ensure `data_model_file_path` is an absolute path
 - Verify the file exists: `ls -la /path/to/schema.md`
+- Paths support `$HOME`, `${VAR}`, and `~` expansion
 
 ### Connection timeout (Direct)
 

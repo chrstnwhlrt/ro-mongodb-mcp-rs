@@ -36,3 +36,4 @@ mongodb = "3.4"
 
 # Async traits (needed for dyn-compatible traits)
 async-trait = "0.1"
+shellexpand = "3.1.1"

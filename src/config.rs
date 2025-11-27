@@ -4,6 +4,14 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Expand environment variables and tilde in a path string.
+/// Supports: $HOME, ${VAR}, ~/path
+fn expand_path(path: &str) -> String {
+    shellexpand::full(path)
+        .map(|s| s.into_owned())
+        .unwrap_or_else(|_| path.to_string())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NamespaceConfig {
     pub namespace_name: String,
@@ -78,7 +86,11 @@ impl Config {
 
         let content = fs::read_to_string(&config_file).context("Failed to read config file")?;
 
-        let config: Self = serde_yaml::from_str(&content).context("Failed to parse config file")?;
+        let mut config: Self =
+            serde_yaml::from_str(&content).context("Failed to parse config file")?;
+
+        // Expand environment variables and tilde in paths
+        config.expand_paths();
 
         // Validate data model files exist
         config.validate();
@@ -191,6 +203,28 @@ connections:
         }
 
         Ok(())
+    }
+
+    /// Expand environment variables and tilde in all path fields
+    fn expand_paths(&mut self) {
+        // Expand kubeconfig_path
+        if let Some(path) = &self.kubeconfig_path {
+            self.kubeconfig_path = Some(expand_path(path));
+        }
+
+        // Expand data_model_file_path in namespaces
+        for ns in &mut self.namespaces {
+            if let Some(path) = &ns.data_model_file_path {
+                ns.data_model_file_path = Some(expand_path(path));
+            }
+        }
+
+        // Expand data_model_file_path in direct connections
+        for conn in &mut self.connections {
+            if let Some(path) = &conn.data_model_file_path {
+                conn.data_model_file_path = Some(expand_path(path));
+            }
+        }
     }
 
     pub fn validate(&self) {
