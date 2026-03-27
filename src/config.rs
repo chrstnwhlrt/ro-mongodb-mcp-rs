@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 fn expand_path(path: &str) -> String {
     shellexpand::full(path)
         .map(|s| s.into_owned())
-        .unwrap_or_else(|_| path.to_string())
+        .unwrap_or_else(|e| {
+            tracing::warn!("Failed to expand path '{}': {}", path, e);
+            path.to_string()
+        })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,28 +161,6 @@ connections:
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn get_namespace(&self, name: &str) -> Option<&NamespaceConfig> {
-        self.namespaces.iter().find(|ns| ns.namespace_name == name)
-    }
-
-    #[allow(dead_code)]
-    pub fn get_direct_connection(&self, name: &str) -> Option<&DirectConnectionConfig> {
-        self.connections.iter().find(|c| c.name == name)
-    }
-
-    /// Get all connection names (both namespaces and direct connections)
-    #[allow(dead_code)]
-    pub fn all_connection_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self
-            .namespaces
-            .iter()
-            .map(|ns| ns.namespace_name.clone())
-            .collect();
-        names.extend(self.connections.iter().map(|c| c.name.clone()));
-        names
-    }
-
     /// Validate that no duplicate connection names exist
     pub fn validate_unique_names(&self) -> Result<()> {
         let mut seen = HashSet::new();
@@ -219,8 +200,9 @@ connections:
             }
         }
 
-        // Expand data_model_file_path in direct connections
+        // Expand paths in direct connections
         for conn in &mut self.connections {
+            conn.mongodb_url = expand_path(&conn.mongodb_url);
             if let Some(path) = &conn.data_model_file_path {
                 conn.data_model_file_path = Some(expand_path(path));
             }

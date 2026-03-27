@@ -196,13 +196,16 @@ impl K8sClient {
         let stdout_str = String::from_utf8(stdout_bytes).context("stdout is not valid UTF-8")?;
         let stderr_str = String::from_utf8(stderr_bytes).context("stderr is not valid UTF-8")?;
 
-        // If stdout is empty but stderr has content, return stderr (it's an error)
-        // If both have content, prefer stdout but append stderr if it looks like an error
-        if stdout_str.trim().is_empty() && !stderr_str.trim().is_empty() {
+        // Prefer stdout; only fall back to stderr if stdout is empty.
+        // Never concatenate stderr into stdout to avoid corrupting JSON output.
+        if !stdout_str.trim().is_empty() {
+            if !stderr_str.trim().is_empty() {
+                tracing::warn!("Command produced stderr: {}", stderr_str.trim());
+            }
+            Ok(stdout_str)
+        } else if !stderr_str.trim().is_empty() {
+            // stdout empty, stderr has content — likely an error message
             Ok(stderr_str)
-        } else if !stderr_str.trim().is_empty() && stderr_str.contains("Error") {
-            // Append error info to stdout
-            Ok(format!("{}\n{}", stdout_str, stderr_str))
         } else {
             Ok(stdout_str)
         }

@@ -10,7 +10,6 @@ use rmcp::{
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::config::Config;
 use crate::connection::ConnectionRegistry;
 use crate::mongodb::{self, QueryOptions};
 use crate::saved_queries::SavedQueries;
@@ -87,8 +86,6 @@ fn substitute_placeholders(
 pub struct McpServer {
     name: String,
     version: String,
-    #[allow(dead_code)]
-    config: Config,
     connections: Arc<ConnectionRegistry>,
     tool_router: ToolRouter<Self>,
 }
@@ -97,13 +94,11 @@ impl McpServer {
     pub fn new(
         name: impl Into<String>,
         version: impl Into<String>,
-        config: Config,
         connections: ConnectionRegistry,
     ) -> Self {
         Self {
             name: name.into(),
             version: version.into(),
-            config,
             connections: Arc::new(connections),
             tool_router: Self::tool_router(),
         }
@@ -274,8 +269,7 @@ impl McpServer {
             .get(&params.connection_name)
             .ok_or_else(|| self.connection_not_found(&params.connection_name))?;
 
-        let op = mongodb::QueryOperation::from_str(params.operation.as_str())
-            .map_err(|e| rmcp::ErrorData::invalid_params(e.to_string(), None))?;
+        let op = mongodb::QueryOperation::from(&params.operation);
 
         // Check for overrides on non-find operations
         let has_overrides =
@@ -327,10 +321,6 @@ impl McpServer {
             .get(&params.connection_name)
             .ok_or_else(|| self.connection_not_found(&params.connection_name))?;
 
-        // Validate operation
-        mongodb::QueryOperation::from_str(params.operation.as_str())
-            .map_err(|e| rmcp::ErrorData::invalid_params(e.to_string(), None))?;
-
         let mut saved_queries = SavedQueries::load(&params.connection_name)
             .map_err(|e| rmcp::ErrorData::internal_error(e.to_string(), None))?;
 
@@ -342,6 +332,7 @@ impl McpServer {
             params.collection_name,
             params.operation.as_str().to_string(),
             params.query,
+            params.distinct_field,
         );
 
         saved_queries
@@ -524,12 +515,12 @@ impl McpServer {
             None
         };
 
-        // Apply any runtime overrides (only effective for find)
+        // Apply any runtime overrides; distinct_field falls back to saved value
         let options = QueryOptions {
             limit: params.limit,
             sort: params.sort,
             projection: params.projection,
-            distinct_field: None,
+            distinct_field: params.distinct_field.or(saved_query.distinct_field.clone()),
         };
 
         let result = connection
@@ -551,14 +542,12 @@ impl McpServer {
 #[tool_handler]
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: rmcp::model::Implementation {
-                name: self.name.clone(),
-                version: self.version.clone(),
-                ..Default::default()
-            },
-            instructions: Some(
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(rmcp::model::Implementation::new(
+                self.name.clone(),
+                self.version.clone(),
+            ))
+            .with_instructions(
                 "Read-only MongoDB query server. Workflow: \
                  1) list_connections to see available connections, \
                  2) get_data_model to understand the schema, \
@@ -566,11 +555,8 @@ impl ServerHandler for McpServer {
                  4) query_mongodb to run queries. \
                  For time-based queries, use get_current_time first. \
                  Save reusable queries with save_query using {{placeholder}} variables, \
-                 then run them with run_saved_query providing variable values."
-                    .to_string(),
-            ),
-            ..Default::default()
-        }
+                 then run them with run_saved_query providing variable values.",
+            )
     }
 }
 

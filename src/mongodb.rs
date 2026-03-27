@@ -223,14 +223,6 @@ pub async fn get_mongodb_credentials(
     Ok(MongoCredentials { username, password })
 }
 
-/// Validate that the operation is read-only
-///
-/// Note: All operations in the `QueryOperation` enum are read-only by design.
-/// This function exists as an explicit validation point for safety.
-pub const fn validate_readonly_operation(_operation: &QueryOperation) {
-    // All operations in the enum are read-only by design
-}
-
 /// Execute a `MongoDB` query via mongosh
 pub async fn execute_mongosh_query(
     k8s_client: &K8sClient,
@@ -241,9 +233,6 @@ pub async fn execute_mongosh_query(
     query: &MongoQuery,
     timeout_secs: u64,
 ) -> Result<String> {
-    // Validate operation is read-only
-    validate_readonly_operation(&query.operation);
-
     // Build mongosh eval code
     let eval_code =
         query
@@ -400,15 +389,6 @@ mod tests {
             Ok(QueryOperation::Distinct)
         ));
         assert!(QueryOperation::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn test_validate_readonly_operation() {
-        // All operations are valid by design
-        validate_readonly_operation(&QueryOperation::Find);
-        validate_readonly_operation(&QueryOperation::Aggregate);
-        validate_readonly_operation(&QueryOperation::CountDocuments);
-        validate_readonly_operation(&QueryOperation::Distinct);
     }
 
     #[test]

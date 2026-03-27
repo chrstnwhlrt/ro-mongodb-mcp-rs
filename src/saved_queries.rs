@@ -15,6 +15,8 @@ pub struct SavedQuery {
     pub collection: String,
     pub operation: String,
     pub query: String,
+    #[serde(default)]
+    pub distinct_field: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -28,7 +30,12 @@ impl SavedQueries {
     /// Get the file path for a connection's saved queries
     fn queries_file_path(connection_name: &str) -> Result<PathBuf> {
         let data_dir = Config::data_dir()?;
-        Ok(data_dir.join(format!("{connection_name}.queries.yaml")))
+        // Sanitize connection name to prevent path traversal
+        let safe_name: String = connection_name
+            .chars()
+            .map(|c| if c == '/' || c == '\\' || c == '\0' { '_' } else { c })
+            .collect();
+        Ok(data_dir.join(format!("{safe_name}.queries.yaml")))
     }
 
     /// Load saved queries for a connection
@@ -63,6 +70,7 @@ impl SavedQueries {
         collection: String,
         operation: String,
         query: String,
+        distinct_field: Option<String>,
     ) {
         let now = Utc::now();
 
@@ -72,6 +80,7 @@ impl SavedQueries {
             existing.collection = collection;
             existing.operation = operation;
             existing.query = query;
+            existing.distinct_field = distinct_field;
             existing.updated_at = now;
         } else {
             // Create new query
@@ -81,6 +90,7 @@ impl SavedQueries {
                 collection,
                 operation,
                 query,
+                distinct_field,
                 created_at: now,
                 updated_at: now,
             });
@@ -99,11 +109,6 @@ impl SavedQueries {
         self.queries.len() < original_len
     }
 
-    /// List all query names
-    #[allow(dead_code)]
-    pub fn list_names(&self) -> Vec<String> {
-        self.queries.iter().map(|q| q.name.clone()).collect()
-    }
 }
 
 #[cfg(test)]
@@ -121,6 +126,7 @@ mod tests {
             "users".to_string(),
             "find".to_string(),
             "{}".to_string(),
+            None,
         );
 
         assert_eq!(queries.queries.len(), 1);
@@ -133,6 +139,7 @@ mod tests {
             "users".to_string(),
             "find".to_string(),
             "{}".to_string(),
+            None,
         );
 
         assert_eq!(queries.queries.len(), 1);
@@ -148,6 +155,7 @@ mod tests {
             "col".to_string(),
             "find".to_string(),
             "{}".to_string(),
+            None,
         );
 
         assert!(queries.get_query("test").is_some());
@@ -163,6 +171,7 @@ mod tests {
             "col".to_string(),
             "find".to_string(),
             "{}".to_string(),
+            None,
         );
 
         assert!(queries.delete_query("test"));
@@ -171,26 +180,18 @@ mod tests {
     }
 
     #[test]
-    fn test_list_names() {
+    fn test_upsert_with_distinct_field() {
         let mut queries = SavedQueries::default();
         queries.upsert_query(
-            "q1".to_string(),
-            "d1".to_string(),
-            "c".to_string(),
-            "find".to_string(),
+            "distinct_query".to_string(),
+            "desc".to_string(),
+            "users".to_string(),
+            "distinct".to_string(),
             "{}".to_string(),
-        );
-        queries.upsert_query(
-            "q2".to_string(),
-            "d2".to_string(),
-            "c".to_string(),
-            "find".to_string(),
-            "{}".to_string(),
+            Some("country".to_string()),
         );
 
-        let names = queries.list_names();
-        assert_eq!(names.len(), 2);
-        assert!(names.contains(&"q1".to_string()));
-        assert!(names.contains(&"q2".to_string()));
+        let query = queries.get_query("distinct_query").unwrap();
+        assert_eq!(query.distinct_field, Some("country".to_string()));
     }
 }

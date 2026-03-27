@@ -4,6 +4,8 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use crate::mongodb::QueryOperation;
+
 /// Parameters for get_data_model tool
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetDataModelParams {
@@ -33,13 +35,24 @@ pub enum QueryOperationType {
 }
 
 impl QueryOperationType {
-    /// Convert to the string format expected by mongodb::QueryOperation::from_str
+    /// Convert to the string format used for storage
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Find => "find",
             Self::Aggregate => "aggregate",
             Self::CountDocuments => "countDocuments",
             Self::Distinct => "distinct",
+        }
+    }
+}
+
+impl From<&QueryOperationType> for QueryOperation {
+    fn from(op: &QueryOperationType) -> Self {
+        match op {
+            QueryOperationType::Find => QueryOperation::Find,
+            QueryOperationType::Aggregate => QueryOperation::Aggregate,
+            QueryOperationType::CountDocuments => QueryOperation::CountDocuments,
+            QueryOperationType::Distinct => QueryOperation::Distinct,
         }
     }
 }
@@ -86,6 +99,9 @@ pub struct SaveQueryParams {
     /// Use quotes for strings: {"name": "{{name}}"}
     /// Omit quotes for numbers/arrays: {"_id": {{userId}}, "tags": {{tagList}}}
     pub query: String,
+    /// (distinct only) Field to get unique values from. Required for distinct operation.
+    #[serde(default)]
+    pub distinct_field: Option<String>,
 }
 
 /// Parameters for list_saved_queries tool
@@ -133,4 +149,7 @@ pub struct RunSavedQueryParams {
     /// (find only) Override: Fields to include/exclude as JSON object.
     #[serde(default)]
     pub projection: Option<String>,
+    /// (distinct only) Override: Field to get unique values from.
+    #[serde(default)]
+    pub distinct_field: Option<String>,
 }

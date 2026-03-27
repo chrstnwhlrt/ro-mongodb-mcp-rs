@@ -80,7 +80,6 @@ async fn main() -> Result<()> {
     let mcp_server = mcp::McpServer::new(
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION"),
-        config,
         registry,
     );
     mcp_server.run().await?;
