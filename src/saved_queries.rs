@@ -33,7 +33,13 @@ impl SavedQueries {
         // Sanitize connection name to prevent path traversal
         let safe_name: String = connection_name
             .chars()
-            .map(|c| if c == '/' || c == '\\' || c == '\0' { '_' } else { c })
+            .map(|c| {
+                if c == '/' || c == '\\' || c == '\0' {
+                    '_'
+                } else {
+                    c
+                }
+            })
             .collect();
         Ok(data_dir.join(format!("{safe_name}.queries.yaml")))
     }
@@ -108,7 +114,6 @@ impl SavedQueries {
         self.queries.retain(|q| q.name != name);
         self.queries.len() < original_len
     }
-
 }
 
 #[cfg(test)]

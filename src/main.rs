@@ -77,11 +77,8 @@ async fn main() -> Result<()> {
         registry.register(Box::new(DirectConnection::new(conn.clone())));
     }
 
-    let mcp_server = mcp::McpServer::new(
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        registry,
-    );
+    let mcp_server =
+        mcp::McpServer::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), registry);
     mcp_server.run().await?;
 
     Ok(())
